@@ -5,6 +5,7 @@ const connectDB = require("./src/config/db");
 const askRouter = require("./src/routes/askRoutes");
 const docsRouter = require("./src/routes/docRoutes");
 const authRouter = require("./src/routes/authRoutes");
+const historyRouter = require("./src/routes/historyRoutes");
 
 const app = express();
 
@@ -18,6 +19,7 @@ app.use(express.json());
 app.use("/api/docs", docsRouter);
 app.use("/api/ask", askRouter);
 app.use("/api/auth", authRouter);
+app.use("/api/ask/history", historyRouter);
 
 // Health check route .
 app.get("/", (req, res) => {
