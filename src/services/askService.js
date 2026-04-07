@@ -1,34 +1,46 @@
-const Document = require("../models/Document");
 const OpenAI = require("openai");
+const { z } = require("zod");
+const Document = require("../models/Document");
+const cosineSimilarity = require("../utils/cosineSimilarity");
+const getEmbedding = require("./embeddingService");
 
 const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY
 });
 
-// Step 1: Find relevant docs
+// ZOD schema
+const responseSchema = z.object({
+  answer: z.string(),
+  sources: z.array(z.string()),
+  confidence: z.enum(["high", "medium", "low"])
+});
+
+
+// 🔍 Semantic search
 const findRelevantDocs = async (question) => {
-    const keyword = question.toLowerCase();
+  const queryEmbedding = await getEmbedding(question);
 
-    const docs = await Document.find({
-        $or: [
-            { title: { $regex: keyword, $options: "i" } },
-            { content: { $regex: keyword, $options: "i" } },
-            { tags: { $in: [keyword] } }
-        ]
-    }).limit(3);
+  const docs = await Document.find();
 
-    return docs;
+  const scored = docs.map(doc => ({
+    doc,
+    score: cosineSimilarity(queryEmbedding, doc.embedding)
+  }));
+
+  scored.sort((a, b) => b.score - a.score);
+
+  return scored.slice(0, 3).map(s => s.doc);
 };
 
-// 🧠 Step 2: Build prompt
+// 🧠 Prompt
 const buildPrompt = (question, docs) => {
-    const context = docs.map(d => d.content).join("\n");
+  const context = docs.map(d => d.content).join("\n");
 
-    return `
-You are a helpful assistant.
+  return `
+You are a strict AI assistant.
 
-Answer ONLY from the given context.
-If answer is not in context, say "Not available in provided documents".
+Answer ONLY from context.
+If not found, say "Not available in provided documents".
 
 Context:
 ${context}
@@ -36,64 +48,58 @@ ${context}
 Question:
 ${question}
 
-Return JSON:
+Return STRICT JSON:
 {
   "answer": "",
   "sources": [],
-  "confidence": ""
+  "confidence": "high | medium | low"
 }
 `;
 };
 
-// 🤖 Step 3: Call LLM
+// 🤖 LLM call
 const askLLM = async (prompt) => {
-    try {
-        const response = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-                { role: "user", content: prompt }
-            ]
-        });
+  const res = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [{ role: "user", content: prompt }]
+  });
 
-        return response.choices[0].message.content;
-    } catch (error) {
-        console.error(error);
-        throw error;
-    }
+  return res.choices[0].message.content;
 };
 
-// 🎯 Step 4: Confidence logic
+// 🎯 Confidence
 const getConfidence = (docs) => {
-    if (docs.length >= 2) return "high";
-    if (docs.length === 1) return "medium";
-    return "low";
+  if (docs.length >= 2) return "high";
+  if (docs.length === 1) return "medium";
+  return "low";
 };
 
-// 🚀 MAIN FUNCTION
+// 🚀 MAIN
 const askQuestion = async (question) => {
-    const docs = await findRelevantDocs(question);
+  const docs = await findRelevantDocs(question);
 
-    const prompt = buildPrompt(question, docs);
+  const prompt = buildPrompt(question, docs);
 
-    const rawResponse = await askLLM(prompt);
+  const raw = await askLLM(prompt);
 
-    let parsed;
+  let parsed;
 
-    try {
-        parsed = JSON.parse(rawResponse);
-    } catch {
-        parsed = {
-            answer: rawResponse,
-            sources: [],
-            confidence: "low"
-        };
-    }
-
-    return {
-        ...parsed,
-        sources: docs.map(d => d._id),
-        confidence: getConfidence(docs)
+  try {
+    parsed = JSON.parse(raw);
+    responseSchema.parse(parsed); // validate
+  } catch {
+    parsed = {
+      answer: "Error parsing response",
+      sources: [],
+      confidence: "low"
     };
+  }
+
+  return {
+    ...parsed,
+    sources: docs.map(d => d._id.toString()),
+    confidence: getConfidence(docs)
+  };
 };
 
 module.exports = { askQuestion };

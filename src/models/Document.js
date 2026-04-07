@@ -9,6 +9,7 @@ const documentSchema = new mongoose.Schema({
             type: String
         }
     ],
+    embedding: { type: [Number] },
     createdAt: { type: Date, default: Date.now }
 });
 
