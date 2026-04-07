@@ -4,6 +4,7 @@ const cors = require("cors");
 const connectDB = require("./src/config/db");
 const askRouter = require("./src/routes/askRoutes");
 const docsRouter = require("./src/routes/docRoutes");
+const authRouter = require("./src/routes/authRoutes");
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.use(express.json());
 //Routes
 app.use("/api/docs", docsRouter);
 app.use("/api/ask", askRouter);
+app.use("/api/auth", authRouter);
 
 // Health check route .
 app.get("/", (req, res) => {

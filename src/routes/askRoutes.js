@@ -1,8 +1,11 @@
 const express = require("express");
-const { handleAskQuestion } = require("../controllers/askController");
 const askRouter = express.Router();
 
+const { handleAskQuestion } = require("../controllers/askController");
+const authenticate = require("../middlewares/authMiddleware");
+const askLimiter = require("../middlewares/rateLimiter");
 
-askRouter.post("/", handleAskQuestion);
+
+askRouter.post("/", authenticate, askLimiter, handleAskQuestion);
 
 module.exports = askRouter;
