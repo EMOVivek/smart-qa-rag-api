@@ -6,10 +6,9 @@ const askRouter = require("./src/routes/askRoutes");
 const docsRouter = require("./src/routes/docRoutes");
 const authRouter = require("./src/routes/authRoutes");
 const historyRouter = require("./src/routes/historyRoutes");
+const errorHandler = require("./src/middlewares/errorHandler");
 
 const app = express();
-
-
 
 // Middlewares
 app.use(cors());
@@ -25,6 +24,8 @@ app.use("/api/ask/history", historyRouter);
 app.get("/", (req, res) => {
     res.send("API is running...");
 });
+
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 4000;
 

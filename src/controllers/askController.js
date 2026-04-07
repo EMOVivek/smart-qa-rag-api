@@ -16,6 +16,9 @@ const handleAskQuestion = async (req, res) => {
 
         const latency = Date.now() - start;
         const userId = req.user?.userId;
+
+        // Call service layer to process question using RAG pipeline
+        const response = await askQuestion(question, userId);
         // Structured logging
         logInfo({
             route: "/api/ask",
@@ -24,10 +27,6 @@ const handleAskQuestion = async (req, res) => {
             latencyMs: latency,
             confidence: response.confidence
         });
-
-        // Call service layer to process question using RAG pipeline
-        const response = await askQuestion(question, userId);
-
         return res.status(200).json(response);
 
     } catch (error) {
