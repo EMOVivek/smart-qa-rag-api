@@ -18,9 +18,10 @@ const responseSchema = z.object({
 
 
 // Semantic search
+const SIMILARITY_THRESHOLD = 0.75;
+
 const findRelevantDocs = async (question) => {
     const queryEmbedding = await getEmbedding(question);
-
     const docs = await Document.find();
 
     const scored = docs.map(doc => ({
@@ -30,7 +31,10 @@ const findRelevantDocs = async (question) => {
 
     scored.sort((a, b) => b.score - a.score);
 
-    return scored.slice(0, 3).map(s => s.doc);
+    // ✅ filter by threshold
+    const filtered = scored.filter(s => s.score >= SIMILARITY_THRESHOLD);
+
+    return filtered.slice(0, 3).map(s => s.doc);
 };
 
 // Prompt for AI.
@@ -73,18 +77,33 @@ const askLLM = async (prompt) => {
 
 // Confidence
 const getConfidence = (docs) => {
-    if (docs.length >= 2) return "high";
+    if (docs.length === 0) return "low";
     if (docs.length === 1) return "medium";
-    return "low";
+    return "high";
 };
 
 // function to
 const askQuestion = async (question, userId) => {
 
     const docs = await findRelevantDocs(question);
+
+    if (docs.length === 0) {
+        return {
+            answer: "Not available in provided documents",
+            sources: [],
+            confidence: "low"
+        };
+    }
+
     const prompt = buildPrompt(question, docs);
     const raw = await askLLM(prompt);
     let parsed;
+
+    if (!parsed.answer || parsed.answer.trim() === "") {
+        parsed.answer = "Not available in provided documents";
+        parsed.confidence = "low";
+
+    }
     try {
         parsed = JSON.parse(raw);
         responseSchema.parse(parsed);
