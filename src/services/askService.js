@@ -17,9 +17,6 @@ const responseSchema = z.object({
 });
 
 
-// Semantic search
-const SIMILARITY_THRESHOLD = 0.75;
-
 const findRelevantDocs = async (question) => {
     const queryEmbedding = await getEmbedding(question);
     const docs = await Document.find();
@@ -30,11 +27,7 @@ const findRelevantDocs = async (question) => {
     }));
 
     scored.sort((a, b) => b.score - a.score);
-
-    // ✅ filter by threshold
-    const filtered = scored.filter(s => s.score >= SIMILARITY_THRESHOLD);
-
-    return filtered.slice(0, 3).map(s => s.doc);
+    return scored.slice(0, 3).map(s => s.doc);
 };
 
 // Prompt for AI.
@@ -86,30 +79,24 @@ const getConfidence = (docs) => {
 const askQuestion = async (question, userId) => {
 
     const docs = await findRelevantDocs(question);
-
-    if (docs.length === 0) {
-        return {
-            answer: "Not available in provided documents",
-            sources: [],
-            confidence: "low"
-        };
-    }
-
     const prompt = buildPrompt(question, docs);
     const raw = await askLLM(prompt);
     let parsed;
 
-    if (!parsed.answer || parsed.answer.trim() === "") {
-        parsed.answer = "Not available in provided documents";
-        parsed.confidence = "low";
-
-    }
     try {
         parsed = JSON.parse(raw);
         responseSchema.parse(parsed);
     } catch {
         parsed = {
             answer: "Error parsing response",
+            sources: [],
+            confidence: "low"
+        };
+    }
+
+    if (parsed.answer === "Not available in provided documents") {
+        return {
+            answer: parsed.answer,
             sources: [],
             confidence: "low"
         };
